@@ -1,0 +1,24 @@
+AXIS-VERSION="2006";
+CREATION-DATE="20231214";
+CHARSET="ANSI";
+SUBJECT-AREA="Salarios medios";
+SUBJECT-CODE="null";
+MATRIX="Censo20";
+TITLE="Salarios medios por tipo de jornada, sexo y decil.";
+CONTENTS="Salarios medios";
+CODEPAGE="iso-8859-15";
+DESCRIPTION="";
+COPYRIGHT=YES;
+NOTE="Los salarios medios son la media de los salarios brutos mensuales.";
+DECIMALS=1;
+SHOWDECIMALS=1;
+STUB="Tipo de jornada","Sexo";
+HEADING="Decil","Periodo";
+VALUES("Tipo de jornada")="Total";
+VALUES("Sexo")="Hombres","Mujeres";
+VALUES("Decil")="Total decil";
+VALUES("Periodo")="2022","2021","2020","2019","2018","2017","2016","2015","2014","2013","2012","2011","2010",
+"2009","2008","2007","2006";
+SOURCE="Instituto Nacional de Estadística";
+UNITS="¤";
+DATA=2303.46 2276.85 2210.3 2173.62 2161.31 2090.65 2075.65 2122.47 2125.86 2102.1 2083.74 2058.04 2049.81 2023.93 1978.63 1814.38 1731.16 1941.74 1883.43 1851.98 1773.31 1708.39 1668.68 1661.0 1643.79 1618.1 1621.61 1595.48 1601.05 1595.78 1570.78 1522.56 1420.69 1361.12;

@@ -1,0 +1,26 @@
+AXIS-VERSION="2006";
+CREATION-DATE="20231215";
+CHARSET="ANSI";
+SUBJECT-AREA="Tabla 10. Indicadores no monetarios";
+SUBJECT-CODE="02";
+MATRIX="02001";
+TITLE="Número de viajes y pernoctaciones por viajes/pernoctaciones, periodo,  formas de turismo y categoría de visitantes.";
+CONTENTS="Número de viajes y pernoctaciones";
+CODEPAGE="iso-8859-15";
+DESCRIPTION="";
+COPYRIGHT=YES;
+NOTE="1) FUENTE: Estadística de movimientos turísticos en frontera (Frontur),  Encu"
+"esta de gasto turístico (EGATUR), Encuesta de turismo de  residentes (ETR) # "
+"'..'= no se aplica";
+DECIMALS=0;
+SHOWDECIMALS=0;
+STUB="Viajes/pernoctaciones";
+HEADING="periodo","Formas de turismo","Categoría de visitantes";
+VALUES("Viajes/pernoctaciones")="Número de viajes","Número de pernoctaciones";
+VALUES("periodo")="2021","2020","2019","2018","2017","2016";
+VALUES("Formas de turismo")="Turismo receptor","Turismo interno","Turismo emisor";
+VALUES("Categoría de visitantes")="Turistas","Excursionistas";
+SOURCE="Instituto Nacional de Estadística";
+UNITS="valores absolutos";
+DATA=3.1180802E7 2.0450574E7 1.35687709E8 2.12971415E8 7205752.0 1525163.0 1.8933103E7 1.7476868E7 9.6449394E7 1.60339793E8 5074468.0 1295822.0 8.3509153E7 4.2660933E7 1.73754971E8 2.57619303E8 2.0119745E7 2971256.0 8.2808413E7 4.1647253E7 1.76772352E8 2.78190668E8 1.9307118E7 3255321.0 8.1868522E7 3.9848764E7 1.76399801E8 2.80332355E8 1.7289487E7 3242631.0 7.5315008E7 4.0246069E7 1.66218791E8 2.38195864E8 1.5732052E7 2872100.0 2.53985281E8 ".." 5.57278462E8 ".." 6.8893926E7 ".." 1.47986129E8 ".." 4.50689308E8 ".." 4.2719916E7 ".." 5.94017856E8 ".."
+ 6.49516399E8 ".." 1.44391738E8 ".." 6.16714999E8 ".." 6.4436597E8 ".." 1.51773267E8 ".." 6.33696886E8 ".." 6.60794364E8 ".." 1.41154479E8 ".." 5.93417445E8 ".." 6.43050482E8 ".." 1.37274029E8 "..";
