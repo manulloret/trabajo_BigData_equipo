@@ -1,0 +1,1060 @@
+---
+title: "Análisis general de las regiones de España" 
+date: 2022-12-19              #- ISO8601 YYYY-MM-DD format 
+date-format: short
+format: 
+  revealjs:
+    scrollable: true
+    slide-level: 2
+    height: 900
+    width: 1600
+    toc: false
+    center-title-slide: true
+    title-slide-attributes: #- atributos para la slide de titulo
+      data-background-color: "#0ae7ff"   #- color de R-ladies
+    preview-links: auto  #- true: abre un iframe en lugar de abrir ventana
+    link-external-newwindow: true
+    transition: convex
+    fontcolor: "#0ae7ff"
+    highlight-style: a11y
+    code-line-numbers: true
+    number-sections: false
+    slide-number: c/t  
+    incremental: false   
+footer: |
+  Slides hechas con [Quarto](https://quarto.org/) 
+---
+
+## Índice
+
+1. Introducción
+ 
+2. Datos
+
+3. Población
+ 
+4. Economía
+
+## 1. Introducción
+
+En la asignatura “Programación y manejo de datos en la era del Big Data”, debíamos crear dos trabajos distintos: Uno por equipos y uno grupal para así mostrar lo aprendido durante todo el año.
+
+Como el tema era completamente libre, nosotros elegimos un tema muy general como es el análisis de las regiones de España y asi poder sacar datos de cualquier idea que se nos pasase en ese momento por la cabeza.
+
+El trabajo lo hemos dividido en 2 partes:
+
+La primera consta sobre la demografía Española, viendo las diferencias de población entre los hombres y mujeres, los diferentes rangos de edad y las provincias mas pobladas.
+
+La segunda parte ya es relacionada con la economía española, ya que hablaremos sobre el PiB nominal, la diferencia salarial entre hombres y mujeres, como se distribuye el trabajo y la pobreza en España.
+
+## 2. Datos
+
+Para los datos, empezamos cogiéndolos del Kaggle pero la forma con la que se descargaban y/o se abrían no era la correcta para nuestro nivel de R. Es por eso, que decidimos pasar a datos del INE y aunque al inicio nos costaba un poco abrir los datos de la forma correcta, vimos una forma de descargar los datos llamada PC.Axis. Esta a través del paquete pxR, nos abría los datos directamente en el R studio con el formato adecuado y bien estructuradas las columnas. También estaba la forma de descargarlos por CSV o por Excel, y aunque esta forma está dada en clase, la forma en la que se detectaban las variables nos hacía imposible el poder usar algunas columnas de forma numérica, asi que recomendamos el uso de PC.Axis.
+
+Los datos se pueden cargar en la memoria de de R/RStudio de esta forma:
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+#TODOS LOS PAQUETES QUE VAMOS A UTILIZAR
+
+library(tidyverse)
+library(pxR) #install.packages("pxR")
+library(ggplot2)
+library(plotly)
+library(dplyr)
+library(gganimate)
+library(magick)
+library(gt)
+library(gtExtras)
+library(sf)
+library(tidyr)
+library(countrycode)
+library(ggmap)
+library(ggthemes)
+library(mapSpain)
+library(ggrepel)
+library(readxl)
+library(eurostat)
+library(lubridate)
+library(tmap)
+library(ggthemes)
+library(readxl)
+library(gapminder)
+library(ggbump)
+library(plyr)
+library(naniar)
+library(ggrepel)
+library(patchwork)
+library(vembedr)
+library(conflicted)
+library(lubridate)
+library(gtsummary)
+
+conflict_prefer("filter","dplyr")
+conflict_prefer("mutate","dplyr")
+conflict_prefer("rename","dplyr")
+conflict_prefer("arrange","dplyr")
+conflict_prefer("summarise","dplyr")
+conflict_prefer("summarize","dplyr")
+conflict_prefer("layout","plotly")
+
+# CARGAMOS LOS DATOS QUE POSTERIORMENTE TRANSFORMAREMOS PARA PODER ANALIZARLOS MEJOR
+my_url <- "https://github.com/perezp44/pjpv.datos.01/raw/master/data/pob_muni_1996_2020.rda"
+my_destination <- here::here("datos", "pob_mun_1996_2020.rda") #- datos
+curl::curl_download(url = my_url,  destfile = my_destination)  #- descarga
+df <- rio::import(my_destination) #- importamos
+
+
+df_ccaa <- df %>%  
+  group_by(year, ine_ccaa.n) %>%      #- agrupamos tb x año
+  summarise(Pob_CCAA = sum(pob_total, na.rm = TRUE)) %>%   #- cuidado con na.rm = FALSE
+  ungroup()
+
+df_prov <- df %>%  
+  group_by(year, ine_prov.n) %>%    
+  summarise(Pob_CCAA = sum(pob_total, na.rm = TRUE)) %>%
+  ungroup()
+
+df_salarios_CCAA <- pxR::read.px("./datos/salarios_CCAA.px") %>% as.data.frame
+
+salarios_diferencia_genero <- pxR::read.px("./datos/salarios_hombres_mujeres.px") %>% as.data.frame
+
+df_pibn <- pxR :: read.px("./datos/01001.px") %>% as.data.frame()
+
+df_pibn <- df_pibn %>% rename(actividad = Ramas.de.actividad)
+df_pibn <- df_pibn %>% rename(CCAA = Comunidades.y.ciudades.autónomas)
+
+df_pibn$periodo <- as.numeric(as.character(df_pibn$periodo))
+df_pibn$CCAA <- as.character(df_pibn$CCAA)
+df_pibn$Magnitud <- as.character(df_pibn$Magnitud)
+df_pibn$actividad <- as.character(df_pibn$actividad)
+
+df_pibn <- df_pibn %>%
+  mutate(CCAA = ifelse(CCAA == "Total Nacional",
+                       paste("00", CCAA),
+                       CCAA))
+df_pibn <- df_pibn %>%
+  tidyr::separate(CCAA, sep = " ",
+                  into = c("ine_ccaa", "ine_ccaa.n"), extra = "merge")
+
+df_activ_pib <- df_pibn %>%
+  filter(actividad == "PRODUCTO INTERIOR BRUTO A PRECIOS DE MERCADO")
+
+df_pib_valor <- df_activ_pib %>%
+  filter(Magnitud == "Valor")
+
+df_pib_ccaa <- df_pib_valor %>%
+  filter(actividad == "PRODUCTO INTERIOR BRUTO A PRECIOS DE MERCADO") %>%
+  filter(periodo != "NA") %>%
+  select(-c(Magnitud, actividad))
+df_ccaa_2016 <- df_pib_ccaa %>% filter(periodo == min(periodo, na.rm = TRUE))
+
+
+df_Sectores <- pxR::read.px("./datos/3994.px") %>% as.data.frame
+df_Sectores <- janitor::clean_names(df_Sectores) 
+df_Nacimiento <- pxR::read.px("./datos/6567.px") %>% as.data.frame
+df_Nacimiento <- janitor::clean_names(df_Nacimiento)
+df_Vegetativo <- pxR::read.px("./datos/6567.px") %>% as.data.frame
+df_Vegetativo <- janitor::clean_names(df_Vegetativo) 
+df_Turismo <- pxR::read.px("./datos/02001.px") %>% as.data.frame 
+```
+
+---
+
+## 3. Población
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+
+my_url <- "https://www.cepal.org/sites/default/files/news/images/poblacion.png?timestamp=1668449492"
+
+```
+
+![](https://www.cepal.org/sites/default/files/news/images/poblacion.png?timestamp=1668449492)
+---
+
+## 3.1. Población por CCAA
+
+Aquí observamos un gráfico animado de lineas sobre la evolución de la población de España por comunidades autónomas desde 1996 hasta 2020.
+
+```{r, echo = FALSE}
+
+df_ccaa <- df %>%  
+  group_by(year, ine_ccaa.n) %>%      #- agrupamos tb x año
+  summarise(Pob_CCAA = sum(pob_total, na.rm = TRUE)) %>%   #- cuidado con na.rm = FALSE
+  ungroup()
+
+# Gráfico s/ la poblacion por comunidades desde 1996 hasta 2020
+p_animado <- ggplot(df_ccaa, aes(x = year, y = Pob_CCAA, color = as.factor(ine_ccaa.n))) +
+  geom_line(size = 1) +
+  geom_point(size = 2, alpha = 0.7) +
+  labs(
+    title = "Evolución de la Población por CCAA (1996-2020)",
+    x = "Año",
+    y = "Población",
+    color = "Comunidad Autónoma"
+  ) +
+  scale_color_discrete(name = "Comunidad Autónoma") +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(face = "bold", size = 10),
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    axis.title = element_text(face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.text = element_text(size = 8),
+    panel.grid.major = element_line(color = "gray", linetype = "dashed", size = 0.5),
+    legend.position = "right",
+    axis.text.y = element_text(size = 9, hjust = 0.5, vjust = 0.5, color = "black")
+  ) +
+  scale_y_continuous(labels = scales::comma_format(scale = 1e-6, suffix = "M")) +  # Formato de etiquetas
+  
+  transition_reveal(year)
+
+# Mostrar la animación
+animate(p_animado)
+
+```
+
+---
+
+##  3.2. Mujeres vs Hombres
+
+En este gráfico representamos la población española por grupos de edad y sexo por miles de habitantes.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+df_pob_myh <- pxR :: read.px("./datos/4925.px") %>% as.data.frame()
+
+df_pob_myh <- df_pob_myh %>% rename(CCAA = Comunidades.y.Ciudades.Autónomas)
+
+# Convertir niveles específicos del factor a numérico
+df_pob_myh$Periodo <- as.numeric(as.character(df_pob_myh$Periodo))
+df_pob_myh$CCAA <- as.character(df_pob_myh$CCAA)
+df_pob_myh$Sexo <- as.character(df_pob_myh$Sexo)
+
+df_pob_limpio <- df_pob_myh %>%
+  filter(Periodo == "2022") %>%
+  filter(Edad != "Total") %>%
+  filter(Sexo != "Ambos sexos") %>%
+  filter(CCAA == "Total Nacional")
+
+p_pob <- ggplot(data = df_pob_limpio, aes(x = ifelse(Sexo == "Mujeres", -value, value), y = Edad, fill = Sexo, color = Sexo)) +
+  geom_col(position = "identity", color = "white", alpha = 0.6) +
+  geom_path(aes(x = value, y = Edad, group = Sexo)) +
+  labs(title = "Pirámide de Población en España por Edad",
+       x = "Número de Personas",
+       y = "Edad",
+       caption = "Datos: INE",
+       fill = "Género",
+       color = "Género") +
+  theme_minimal() +
+  scale_x_continuous(labels = abs) +  # Mostrar valores absolutos en el eje x
+  scale_fill_manual(values = c("Hombres" = "blue", "Mujeres" = "pink")) +  # Cambiar el color de la leyenda "Hombres"
+  scale_color_manual(values = c("Hombres" = "blue", "Mujeres" = "pink"))  # Cambiar el color de la leyenda "Hombres" en geom_path
+
+p_pob
+
+```
+
+---
+
+## 3.3. Provincias mas pobladas 2020
+
+Este gráfico circular nos muestra las 10 provincias más pobladas de España en 2020.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+
+# (los datos ya estan descargados, es solo agrupar)
+df_prov <- df %>%  
+  group_by(year, ine_prov.n) %>%    
+  summarise(Pob_CCAA = sum(pob_total, na.rm = TRUE)) %>%
+  ungroup()
+
+#Cogemos los datos más actuales:
+df_prov_2020 <- df_prov %>% filter(year == 2020)
+
+# Seleccionar las 10 provincias más pobladas
+df_prov_2020_top10 <- df_prov_2020 %>%
+  top_n(10, wt = Pob_CCAA)
+
+
+#Grafico pastel interactivo
+grafico_pastel_interactivo <- plot_ly(
+  df_prov_2020_top10,
+  labels = ~ine_prov.n,
+  values = ~Pob_CCAA,
+  type = "pie",
+  textinfo = "label+text+value",
+  hoverinfo = "text",
+  hovertemplate = "%{label}: %{value}",
+  marker = list(colors = rainbow(length(df_prov_2020_top10$ine_prov.n)))
+) %>%
+  layout(
+    title = "Distribución de la Población por Provincia en 2020",
+    showlegend = TRUE,
+    legend = list(x = 1, y = 0.5),
+    margin = list(l = 50, r = 50, b = 50, t = 100),
+      showarrow = FALSE
+    )
+
+# Mostrar el gráfico circular interactivo
+
+#plotly::ggplotly(grafico_pastel_interactivo)
+
+grafico_pastel_interactivo <- ggplotly(grafico_pastel_interactivo, tooltip = "text", dynamicTicks = TRUE, width = 2000, height = 1200)
+
+grafico_pastel_interactivo
+```
+
+---
+
+## 3.4. Nacimientos vs Defunciones
+
+Vamos a comparar la población que nace y la población que muere cada año y luego ver si el saldo es positivo o negativo.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+df_Nacimiento <- pxR::read.px("./datos/6567.px") %>% as.data.frame
+
+df_Nacimiento <- janitor::clean_names(df_Nacimiento) 
+
+df_Nacimiento$fecha_anual <- ymd(paste0(df_Nacimiento$periodo, "-01-01"))
+
+df_Nacimiento <- df_Nacimiento %>% 
+  mutate(año = lubridate::year(fecha_anual)) %>% 
+  mutate(trimestre = lubridate::quarter(fecha_anual))  %>% 
+  select(-periodo)
+
+df_Nacimiento <- df_Nacimiento %>% 
+  filter(!(is.na(value)))  
+
+df_Nacimiento <- df_Nacimiento %>% 
+  group_by(año, conceptos_demograficos) %>% 
+  summarise(total = sum(value, na.rm = TRUE))
+
+grafico_nacimiento <- ggplot(data = df_Nacimiento, aes(x=año, y=total , group = conceptos_demograficos)) +
+  geom_line(aes(color = conceptos_demograficos), linetype= "solid",size = 2) +
+  geom_point(size=1)  +
+  transition_reveal(año) +
+  labs(title = "Nacimientos y defunciones durante los ultimos 15 años",
+       caption = "Datos del INE",
+       x = "Años",
+       y = "Nº Nacimientos y Defunciones ") +
+  theme_fivethirtyeight()+
+  theme(title=element_text(family="Arial",size=9,color="black", hjust=0.2,lineheight=0.8),
+        plot.subtitle=element_text(family="myFont",size=8,color="orange",hjust=0.6,lineheight=0.2))+
+  scale_color_brewer(palette = "Dark2")
+
+grafico_nacimiento
+
+```
+
+---
+
+## 3.5. Saldo Vegetativo
+
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+df_Vegetativo$fecha_anual <- ymd(paste0(df_Vegetativo$periodo, "-01-01"))
+
+df_Vegetativo <- df_Vegetativo %>% 
+  mutate(año = lubridate::year(fecha_anual)) %>% 
+  mutate(trimestre = lubridate::quarter(fecha_anual))  %>% 
+  select(-periodo)
+
+
+df_Vegetativo <- df_Vegetativo %>% 
+  filter(!(is.na(value)))  
+
+df_Vegetativo_pivotado <- df_Vegetativo %>%
+  pivot_wider(names_from = conceptos_demograficos, values_from = value, names_prefix = "total_") %>%
+  arrange(año)
+
+
+
+df_Vegetativo_pivotado <- df_Vegetativo_pivotado %>%  
+  group_by(año) %>%      
+  summarise(Nacimientos = sum(total_Nacimiento, na.rm = TRUE),    
+            Defunciones = sum(total_Defunción, na.rm = TRUE)) %>% 
+              ungroup()
+
+df_Vegetativo_pivotado <- df_Vegetativo_pivotado %>%
+  mutate(Saldo_Vegetativo = Nacimientos - Defunciones)
+
+
+grafico_Saldo_Vegetativo <- ggplot(data = df_Vegetativo_pivotado, aes(x = año, y = Saldo_Vegetativo)) +
+  geom_line(aes(color = Saldo_Vegetativo), color = "orange", linetype = "solid", size = 2) +
+  geom_hline(yintercept = 5, linetype = "solid", color = "black", size = 1) +
+  geom_point(size = 1) +
+  labs(
+    title = "Saldo Vegetativo durante los últimos 15 años",
+    caption = "Datos del INE",
+    x = "Años",
+    y = "Nº Nacimientos y Defunciones "
+  ) + theme(
+  title = element_text(family = "Arial", size = 9, color = "black"))
+
+grafico_Saldo_Vegetativo
+
+```
+
+---
+
+## 3.6. Mapa de suicidios
+
+En estos mapas conjuntos representamos la tasa de suicidio por cada 100.000 habitantes clasificados por varios años y comunidades.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+#- cargo GEOMETRIAS de provincias
+df_geo_prov <- pjpv.curso.R.2022::LAU2_prov_2020_canarias
+
+
+#- me quedo con las vv. q me interesan
+df_geo_prov <- df_geo_prov %>% select(ine_ccaa, ine_ccaa.n)
+
+
+#- podemos "agregar" geometrías (este es el de las COMUNIDADES)
+df_geo_ccaa <- df_geo_prov %>%
+  group_by(ine_ccaa, ine_ccaa.n) %>% summarize() %>% ungroup()
+
+#GRAFICOS SUICIDIO MAPA
+df_suicidio <- pxR :: read.px("./datos/46688.px") %>% as.data.frame()
+df_suicidio <- df_suicidio %>% rename(CCAA = Comunidades.y.Ciudades.Autónomas)
+
+# Convertir niveles específicos del factor a numérico
+df_suicidio$Periodo <- as.numeric(as.character(df_suicidio$Periodo))
+df_suicidio$CCAA <- as.character(df_suicidio$CCAA)
+
+df_suicidio <- df_suicidio %>%
+  mutate(CCAA = ifelse(CCAA == "National Total",
+                       paste("00", CCAA),
+                       CCAA))
+df_suicidio <- df_suicidio %>%
+  tidyr::separate(CCAA, sep = " ",
+                  into = c("ine_ccaa", "ine_ccaa.n"), extra = "merge")
+df_suic_selec <- df_suicidio %>%
+  filter(Sexo == "Total") %>%
+  filter(Edades == "Todas las edades") %>%
+  filter(ine_ccaa != "National Total") 
+
+
+df_con_geo_suic <- left_join(df_geo_ccaa, df_suic_selec, by = c("ine_ccaa" = "ine_ccaa"))
+
+p_suic <- df_con_geo_suic %>%
+  ggplot() +
+  geom_sf(aes(fill = value,  geometry = geometry), color = "black", size = .1) +
+  labs(title = "Tasa suicidio por comunidad y año",
+       subtitle = "(valor por cada 100.000 habitantes)",
+       fill = "Escala",
+       caption = "Datos sacados de INE") + theme_light() +
+  coord_sf(xlim = c(-12, 5), ylim = c(35,45 )) +
+  scale_fill_viridis_c()
+
+p_suic + facet_wrap(vars(Periodo))
+
+```
+
+---
+
+## 4. Economía
+
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+my_url <- "https://img.freepik.com/vector-premium/bolsa-dinero-billetes-hucha-simbolo-riqueza-exito-buena-suerte-banca-finanzas-ilustracion-dibujos-animados-vector-plano-objetos-aislados-sobre-fondo-blanco_501569-73.jpg?w=2000"
+
+```
+
+![](https://img.freepik.com/vector-premium/bolsa-dinero-billetes-hucha-simbolo-riqueza-exito-buena-suerte-banca-finanzas-ilustracion-dibujos-animados-vector-plano-objetos-aislados-sobre-fondo-blanco_501569-73.jpg?w=2000)
+
+
+---
+
+## 4.1. PIB  nominal España
+
+Aquí vemos una visión general del PIB Nominal por comunidades.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+
+df_pibn <- pxR :: read.px("./datos/01001.px") %>% as.data.frame()
+
+#- cambiamos los nombres
+df_pibn <- df_pibn %>% rename(actividad = Ramas.de.actividad)
+df_pibn <- df_pibn %>% rename(CCAA = Comunidades.y.ciudades.autónomas)
+
+
+# Convertir niveles específicos del factor a numérico
+df_pibn$periodo <- as.numeric(as.character(df_pibn$periodo))
+df_pibn$CCAA <- as.character(df_pibn$CCAA)
+df_pibn$Magnitud <- as.character(df_pibn$Magnitud)
+df_pibn$actividad <- as.character(df_pibn$actividad)
+
+#- quitamos los numeros de las provincias
+df_pibn <- df_pibn %>%
+  mutate(CCAA = ifelse(CCAA == "Total Nacional",
+                       paste("00", CCAA),
+                       CCAA))
+df_pibn <- df_pibn %>%
+  tidyr::separate(CCAA, sep = " ",
+                  into = c("ine_ccaa", "ine_ccaa.n"), extra = "merge")
+
+# filtramos los datos
+df_activ_pib <- df_pibn %>%
+  filter(actividad == "PRODUCTO INTERIOR BRUTO A PRECIOS DE MERCADO")
+
+df_pib_valor <- df_activ_pib %>%
+  filter(Magnitud == "Valor")
+
+
+#- vamos a hacer ahora una coropleta con el pib nominal de cada ccaa
+df_pib_ccaa <- df_pib_valor %>%
+  filter(actividad == "PRODUCTO INTERIOR BRUTO A PRECIOS DE MERCADO") %>%
+  filter(periodo != "NA") %>%
+  select(-c(Magnitud, actividad))
+
+df_ccaa_2016 <- df_pib_ccaa %>% filter(periodo == min(periodo, na.rm = TRUE))
+
+
+#- junto geometría (df_geo_ccaa) con datos INE (df_ccaa_2016)
+#- las geometrías a la izquierda
+df_con_geo_pib <- left_join(df_geo_ccaa, df_ccaa_2016, by = c("ine_ccaa" = "ine_ccaa"))
+
+# coropletas con más opciones
+qtm(df_con_geo_pib, fill = "value", fill.n = 4, fill.palette = "div",
+    fill.title = "PIB NOMINAL",  style = "col_blind")
+
+```
+
+---
+
+##  4.2. Población activa por sectores
+
+En este caso vamos a ver cómo se divide la población en activo Española a través de 4 sectores distintos más el porcentaje de parados por año. Lo veremos a través de 4 años distintos con un gráfico circular.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+
+df_Sectores <- df_Sectores %>% 
+  mutate(fecha = lubridate::yq(periodo)) %>% 
+  mutate(anyo = lubridate::year(fecha)) %>% 
+  mutate(trimestre = lubridate::quarter(fecha))  %>% 
+  select(-periodo)
+
+
+
+Industria <- df_Sectores %>%
+  filter (sector_economico == "Industria") %>%
+  filter (provincias == "Total Nacional") %>%
+  select (!c(trimestre, fecha)) %>%
+  filter (anyo < 2023) %>%  
+  group_by(anyo, sector_economico) %>%      
+  summarise(Porcentaje = sum(value, na.rm = TRUE)/4) %>%  
+  ungroup()
+
+Servicios <- df_Sectores %>%
+  filter (sector_economico == "Servicios") %>%
+  filter (provincias == "Total Nacional") %>%
+  select (!c(trimestre, fecha)) %>%
+  filter (anyo < 2023) %>%  
+  group_by(anyo, sector_economico) %>%      
+  summarise(Porcentaje = (sum(value, na.rm = TRUE)/4)-0.025) %>%   
+  ungroup()
+
+Agricultura <- df_Sectores %>%
+  filter (sector_economico == "Agricultura") %>%
+  filter (provincias == "Total Nacional") %>%
+  select (!c(trimestre, fecha)) %>%
+  filter (anyo < 2023)%>%  
+  group_by(anyo, sector_economico) %>%      
+  summarise(Porcentaje = sum(value, na.rm = TRUE)/4) %>%   
+  ungroup()
+
+Construcción <- df_Sectores %>%
+  filter (sector_economico == "Construcción") %>%
+  filter (provincias == "Total Nacional") %>%
+  select (!c(trimestre, fecha)) %>%
+  filter (anyo < 2023) %>%  
+  group_by(anyo, sector_economico) %>%      
+  summarise(Porcentaje = sum(value, na.rm = TRUE)/4) %>%  
+  ungroup()
+
+Sectores_combinados <- Construcción %>%
+  full_join(Agricultura) %>%
+  full_join(Servicios) %>%
+  full_join(Industria) 
+
+Sectores_combinados <- Sectores_combinados %>% 
+  arrange(anyo)%>%
+  pivot_wider(names_from = sector_economico, values_from = Porcentaje) %>%
+  mutate(Parados = 100-`Construcción`-`Agricultura`-`Servicios`-`Industria`) %>%
+  pivot_longer(cols = 2:6, names_to = "sectores", values_to = "Porcentaje") 
+
+
+Sectores_combinados_2008 <- Sectores_combinados %>%
+  filter (anyo == 2008)%>%
+  mutate(Porcentaje_2decimales = round(Porcentaje, 2),
+         csum = rev(cumsum(rev(Porcentaje_2decimales))),
+         posicion = Porcentaje_2decimales/2 + lead(csum, 1))%>%
+  mutate(posicion = ifelse(is.na(posicion), Porcentaje_2decimales/2, posicion))
+
+Sectores_combinados_2013 <- Sectores_combinados %>%
+  filter (anyo == 2013)%>%
+  mutate(Porcentaje_2decimales = round(Porcentaje, 2),
+         csum = rev(cumsum(rev(Porcentaje_2decimales))),
+         posicion = Porcentaje_2decimales/2 + lead(csum, 1))%>%
+  mutate(posicion = ifelse(is.na(posicion), Porcentaje_2decimales/2, posicion))
+
+Sectores_combinados_2018 <- Sectores_combinados %>%
+  filter (anyo == 2018)%>%
+  mutate(Porcentaje_2decimales = round(Porcentaje, 2),
+         csum = rev(cumsum(rev(Porcentaje_2decimales))),
+         posicion = Porcentaje_2decimales/2 + lead(csum, 1))%>%
+  mutate(posicion = ifelse(is.na(posicion), Porcentaje_2decimales/2, posicion))
+
+
+Sectores_combinados_2022 <- Sectores_combinados %>%
+  filter (anyo == 2022)%>%
+  mutate(Porcentaje_2decimales = round(Porcentaje, 2),
+         csum = rev(cumsum(rev(Porcentaje_2decimales))),
+         posicion = Porcentaje_2decimales/2 + lead(csum, 1))%>%
+  mutate(posicion = ifelse(is.na(posicion), Porcentaje_2decimales/2, posicion))
+
+
+Sectores_combinados_Grafico_2008 <- ggplot(Sectores_combinados_2008, aes(x = "" , y = Porcentaje , fill = fct_inorder(sectores))) +
+  geom_col(width = 1, color = 2) +
+  coord_polar(theta = "y") +
+  scale_fill_brewer(palette = "YlOrBr") +
+  ggtitle("2008")+
+  geom_label_repel(data = Sectores_combinados_2008,
+                   aes(y = posicion, label = paste0(Porcentaje, "%")),
+                   size = 4, nudge_x = 1, show.legend = FALSE) +
+  guides(fill = guide_legend(title = "Sector")) +
+  theme_void() 
+
+
+
+Sectores_combinados_Grafico_2013 <- ggplot(Sectores_combinados_2013, aes(x = "" , y = Porcentaje , fill = fct_inorder(sectores))) +
+  geom_col(width = 1, color = 2) +
+  coord_polar(theta = "y") +
+  scale_fill_brewer(palette = "Paired") +
+  ggtitle("2013")+ 
+  geom_label_repel(data = Sectores_combinados_2013,
+                   aes(y = posicion, label = paste0(Porcentaje, "%")),
+                   size = 4, nudge_x = 1, show.legend = FALSE) +
+  guides(fill = guide_legend(title = "Sector")) +
+  theme_void() 
+
+Sectores_combinados_Grafico_2018 <- ggplot(Sectores_combinados_2018, aes(x = "" , y = Porcentaje , fill = fct_inorder(sectores))) +
+  geom_col(width = 1, color = 2) +
+  coord_polar(theta = "y") +
+  scale_fill_brewer(palette = "Pastel1") +
+  ggtitle("2018")+
+  geom_label_repel(data = Sectores_combinados_2018,
+                   aes(y = posicion, label = paste0(Porcentaje_2decimales, "%")),
+                   size = 4, nudge_x = 1, show.legend = FALSE) +
+  guides(fill = guide_legend(title = "Sector")) +
+  theme_void() 
+
+Sectores_combinados_Grafico_2022 <- ggplot(Sectores_combinados_2022 , aes(x = "" , y = Porcentaje , fill = fct_inorder(sectores))) +
+    geom_col(width = 1, color = 2) +
+    coord_polar(theta = "y") +
+    scale_fill_brewer(palette = "Purples") +
+    ggtitle("2022")+
+    geom_label_repel(data = Sectores_combinados_2022,
+                     aes(y = posicion, label = paste0(Porcentaje, "%")),
+                     size = 4, nudge_x = 1, show.legend = FALSE) +
+    guides(fill = guide_legend(title = "Sector")) +
+    theme_void() 
+
+wrap_plots(Sectores_combinados_Grafico_2008, Sectores_combinados_Grafico_2013, Sectores_combinados_Grafico_2018, Sectores_combinados_Grafico_2022, 
+           ncol = 2, nrow = 2,
+           widths = c(1, 1), heights = c(1, 1)) +
+  plot_annotation(title = "Como se divide la población activa en España",
+                  subtitle = "(2008, 2013, 2018 y 2022 (respectivamente))",
+                  caption = "Datos del INE")
+
+```
+
+---
+
+## 4.3. Salario medio CCAA
+
+El siguiente gráfico de barras animado nos muestra la distribución salarial en España por comunidades autónomas desde 2006 hasta 2022.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+
+df_salarios_CCAA <- pxR::read.px("./datos/salarios_CCAA.px") %>% as.data.frame
+
+#Cambio nombre de una columna (para que sea más fácil)
+
+df_salarios_CCAA <- df_salarios_CCAA %>%
+  rename(CCAA = Comunidades.y.Ciudades.Autonómas)
+
+#De 2006 a 2022
+
+df_salarios_CCAA$Periodo <- factor(df_salarios_CCAA$Periodo, levels = rev(unique(df_salarios_CCAA$Periodo)))
+
+#Gráfico animado
+
+p_base <- ggplot(df_salarios_CCAA, aes(x = CCAA, y = value, fill = CCAA)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Salario medio por Comunidades Autónomas en {closest_state}",
+    x = "Comunidad Autónoma",
+    y = "Salario Medio",
+    fill = "Comunidad Autónoma"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none",
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 10),
+    axis.line = element_line(color = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  ) +
+  geom_text(
+    aes(label = value),
+    vjust = -0.5,
+    color = "black",
+    size = 3,
+    position = position_dodge(width = 0.7)
+  )
+
+# Crear la animación
+p_animado <- p_base +
+  transition_states(Periodo, transition_length = 12, state_length = 6) +  # Ajustar la velocidad aquí
+  ease_aes('linear')
+
+# Guardar la animación como un archivo GIF
+anim_save("salarios_CCAA_animacion.gif", animation = p_animado)
+
+# Cargar la animación desde el archivo
+animacion_salarios <- image_read("salarios_CCAA_animacion.gif")
+
+# Mostrar la animación
+image_animate(animacion_salarios)
+
+```
+
+---
+
+## 4.4. Salario CCAA 2022
+
+Aquí os dejo un gráfico de barras medio bonito de la distribución salarial en España por CCAA, pero solo de 2022. Al ser el otro en movimiento, dejo este estático con los resultados de 2022 que entiendo que son los más interesantes y actuales.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+
+#GRAFICO (SOLO 2022)
+df_salarios_2022 <- df_salarios_CCAA %>%
+  filter(Periodo == 2022)
+
+
+ggplot(df_salarios_CCAA, aes(x = CCAA, y = value, fill = CCAA)) +
+  geom_bar(stat = "identity", width = 0.7, color = "white") +
+  labs(
+    title = "Salario medio España por CCAA (2022)",
+    x = "Comunidades Autónomas",
+    y = "Salario medio",
+    fill = "Comunidad Autónoma"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none",  # No mostrar la leyenda
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 10),
+    axis.line = element_line(color = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  ) 
+
+```
+
+---
+
+## 4.5. HOMBRES vs MUJERES
+
+Este es un gráfico de lineas interactivo comparando la media salarial en España entre hombres y mujeres.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+
+salarios_diferencia_genero <- pxR::read.px("./datos/salarios_hombres_mujeres.px") %>% as.data.frame
+
+#- Arreglo los datos para que empiece en 2006 y termine en 2022
+salarios_diferencia_genero$Periodo <- factor(salarios_diferencia_genero$Periodo, levels = rev(unique(salarios_diferencia_genero$Periodo)))
+
+# Crear el gráfico
+p <- ggplot(salarios_diferencia_genero, aes(x = Periodo, y = value, color = Sexo, group = Sexo)) +
+  geom_line(size = 1, show.legend = FALSE) +  # Evitar mostrar líneas en la leyenda
+  geom_point(aes(text = paste(Sexo, ": ", value)), show.legend = FALSE) +  # Mostrar puntos con texto para información detallada al señalar
+  labs(
+    title = "Diferencia Salarial entre Hombres y Mujeres (2002-2020)",
+    x = "Año",
+    y = "Diferencia Salarial",
+    color = "Sexo",
+    caption = "Fuente: Tus datos"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    legend.title = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 10, angle = 45, hjust = 1),  # Ajusta el ángulo de las etiquetas
+    legend.text = element_text(size = 10)
+  )
+
+# Gráfico interactivo con plotly
+p_interactivo <- ggplotly(p, tooltip = "text", dynamicTicks = TRUE, width = 1000, height = 600)
+
+# Mostrar el gráfico interactivo
+p_interactivo
+
+```
+
+---
+
+## 4.6. Tasa de pobreza
+
+Aquí lo que hemos hecho es un gráfico donde aparece la evolución de la tasa de pobreza de ciertas comunidades, hemos elegido las comunidades con mayor tasa y las que menos (aunque realmente no ha sido tan así, hemos cogido las que nos venían bien para que quedase chulo en el gráfico).
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+
+df_pobreza <- pxR :: read.px("./datos/9963.px") %>% as.data.frame()
+
+#- cambiar nombres
+df_pobreza <- df_pobreza %>% rename(tasa = Tasa.de.riesgo.de.pobreza)
+df_pobreza <- df_pobreza %>% rename(CCAA = Comunidades.y.Ciudades.Autónomas)
+# Convertir niveles específicos del factor a numérico
+df_pobreza$Periodo <- as.numeric(as.character(df_pobreza$Periodo))
+df_pobreza$CCAA <- as.character(df_pobreza$CCAA)
+
+#- separamos los numeros de cada provincia
+df_pobreza <- df_pobreza %>%
+  mutate(CCAA = ifelse(CCAA == "Total Nacional",
+                       paste("00", CCAA),
+                       CCAA))
+df_pobreza <- df_pobreza %>%
+  tidyr::separate(CCAA, sep = " ",
+                  into = c("ine_ccaa", "ine_ccaa.n"), extra = "merge")
+
+df_tasa_pobr <- df_pobreza %>%
+  filter(tasa == "Tasa de riesgo de pobreza (renta del año anterior a la entrevista)")
+
+
+# Filtrar los datos para los países
+ccaas_pobr <- c("Total Nacional", "Navarra, Comunidad Foral de", "Castilla - La Mancha", "País Vasco", "Madrid, Comunidad de", "Andalucía", "Aragón", "Murcia, Región de")
+df_ccaa_pobr_elegidas <- df_tasa_pobr %>% filter(ine_ccaa.n %in% ccaas_pobr)
+# Mantener la información de nivel al convertir a caracter
+
+
+# Crear el gráfico de líneas múltiples con colores personalizados
+ggplot(df_ccaa_pobr_elegidas, aes(x = Periodo, y = value, group = ine_ccaa.n, color = ine_ccaa.n)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Evolución Tasa de pobreza",
+       x = "Año",
+       y = "Porcentaje riesgo de pobreza") + 
+  scale_color_brewer(palette = "Set1") +  # Cambiar la paleta de colores
+  theme_minimal() +
+  theme(legend.title = element_blank())
+
+```
+
+---
+
+## 4.7. Grafico de Lineas Pobreza
+
+En esta tabla se representa la tasa de pobreza de todas las comunidades en el año 2022 para así tener una idea a primera vista de cómo se distribuye.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+
+df_noceuta <- df_tasa_pobr %>%
+  filter(ine_ccaa.n != "Ceuta") %>%
+  filter(ine_ccaa.n != "Melilla") %>%
+  filter(ine_ccaa.n != "Total Nacional")
+
+  df_noceuta_2022 <- df_noceuta %>% 
+    filter (Periodo == "2022") %>%
+    select(-c(ine_ccaa, tasa))
+  
+  # Ordenar df_ccaa_2021 de mayor a menor según la columna value
+  df_noceuta_2022 <- df_noceuta_2022 %>% arrange(desc(value))
+
+minimal_table <- gt(df_noceuta_2022) %>% 
+  gtExtras::gt_plt_dot(column = value, category_column = ine_ccaa.n ,  max_value = 35) %>% 
+  gtExtras::gt_theme_nytimes() %>% 
+  tab_header(title = "Tasa de pobreza 2022",
+             subtitle = "renta del año anterior a la entrevista")
+
+minimal_table
+
+```
+
+---
+
+## 4.8. Precio de la vivienda
+
+Este gráfico representa el precio de las viviendas por comunidades a lo largo del tiempo con base en el año 2015, como podemos ver en estas comunidades, los precios de la vivienda se están acercando mucho a los de la burbuja de 2008, sobre todo en las comunidades más urbanas.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+
+df_alquiler <- pxR :: read.px("./datos/25171.px") %>% as.data.frame()
+
+#- CAMBIAR NOMBRES
+
+df_alquiler <- df_alquiler %>% rename(INDICE = Índices.y.tasas)
+df_alquiler <- df_alquiler %>% rename(TIPO = General..vivienda.nueva.y.de.segunda.mano)
+df_alquiler <- df_alquiler %>% rename(CCAA = Comunidades.y.Ciudades.Autónomas)
+
+#CAMBIAR TRIMESTRES
+
+df_alquiler2 <- df_alquiler %>% 
+  mutate(fecha = lubridate::yq(Periodo)) %>% 
+  mutate(anyo = lubridate::year(fecha)) %>% 
+  mutate(trimestre = lubridate::quarter(fecha))  %>% 
+  select(-Periodo)
+
+#SUMAR TRIMESTRE Y QUE SEA ANUAL
+
+df_alq_año <- df_alquiler2 %>%
+  filter (INDICE == "Índice") %>%
+  filter (TIPO == "General") %>%
+  select (!c(trimestre, fecha)) %>%
+  filter (anyo < 2023) %>%  
+  group_by(anyo, CCAA) %>%      
+  summarise(Porcentaje = sum(value, na.rm = TRUE)/4) %>%  
+  ungroup()
+#cambiar a caracter
+
+df_alq_año$CCAA <- as.character(df_alq_año$CCAA)
+#separar numeros
+df_alq_año <- df_alq_año %>%
+  mutate(CCAA = ifelse(CCAA == "Nacional",
+                       paste("00", CCAA),
+                       CCAA))
+df_alq_año <- df_alq_año %>%
+  tidyr::separate(CCAA, sep = " ",
+                  into = c("ccaa.n", "ccaa"), extra = "merge")
+
+
+
+df_alq_filtr <- df_alq_año %>%
+  filter(ccaa %in% c("Andalucía", "Cataluña", "Comunitat Valenciana", "Madrid, Comunidad de", "Castilla - La Mancha", "Aragón"),  
+         anyo %in% c(2010, 2016, 2022))  # Lista de años a incluir
+
+df_alq_filtr <- df_alq_filtr %>%
+  select (!c(ccaa.n))
+
+# Calcular el orden de las comunidades autónomas por el promedio
+df_alq_filtr %>%
+  group_by(ccaa) %>%
+  summarize(promedio = mean(Porcentaje)) %>%
+  arrange(promedio) %>%
+  pull(ccaa) -> ccaa_orden
+
+# Crear el gráfico de barras con mejoras visuales
+ggplot(df_alq_filtr, aes(x = factor(ccaa, levels = ccaa_orden), y = Porcentaje, fill = as.factor(anyo))) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7, color = "white") +
+  geom_text(aes(label = sprintf("%.1f", Porcentaje)), vjust = -0.5, position = position_dodge(width = 0.7), size = 3, color = "black") +
+  labs(title = "Índice precio vivienda por Comunidad Autónoma y Año (BASE=2015)",
+       x = "Comunidad Autónoma",
+       y = "Porcentaje") +
+  scale_fill_manual(values = c("2010" = "#3182bd", "2016" = "#31a354", "2022" = "#e6550d")) +  
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(color = "black"),
+        legend.position = "top",
+        legend.direction = "horizontal") 
+
+```
+
+---
+
+## 3.9. Turismo vinculado a España
+
+Para terminar el trabajo, vamos a ver una tabla sobre el turismo que se mueve en España. En ella tenemos 3 filas y 20 columnas donde se explicara como es el movimiento y si estos se quedan a pernoctar o no.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = TRUE}
+
+df_Turismo<- df_Turismo %>%
+  filter(!is.na(value)) %>%
+  mutate(value = format(value, big.mark = ".", decimal.mark = ",", scientific = FALSE))
+
+df_Turismo_pivotado <- df_Turismo %>%
+  pivot_wider(names_from = Formas.de.turismo, 
+                     values_from = value) %>%
+  arrange(periodo)
+
+df_Turismo_pivotado <- df_Turismo_pivotado %>%
+  rename( turismo_receptor = `Turismo receptor`, turismo_interno = `Turismo interno`, turismo_emisor = `Turismo emisor` )
+
+
+mi_vector_Turismo <- c("turismo_receptor", "turismo_interno", "turismo_emisor")
+
+df_Turismo_pivotado2 <- df_Turismo_pivotado %>%
+  pivot_wider(names_from = periodo,
+              values_from = mi_vector_Turismo)
+
+ 
+df_Turismo_final <- df_Turismo_pivotado2 %>% select(Categoría.de.visitantes,Viajes.pernoctaciones,turismo_receptor_2021, turismo_interno_2021, turismo_emisor_2021, turismo_receptor_2020, turismo_interno_2020, turismo_emisor_2020, turismo_receptor_2019, turismo_interno_2019, turismo_emisor_2019, turismo_receptor_2018, turismo_interno_2018, turismo_emisor_2018, turismo_receptor_2017, turismo_interno_2017, turismo_emisor_2017, turismo_receptor_2016, turismo_interno_2016, turismo_emisor_2016)
+
+Tabla_Turismo <- gt::gt(df_Turismo_final)
+
+Tabla_Turismo <- Tabla_Turismo %>%
+    tab_header(title = "Estructura del turismo de España", subtitle = md("Tenemos en cuenta todos los movimientos vinculados a España")) %>%
+  tab_source_note(md("Fuente: datos de [INE](https://www.ine.es/index.htm)")) %>%      
+  tab_source_note("Obtenidos a partir del paquete pxR") %>%
+  tab_spanner(label = "2021",
+              columns = c(turismo_receptor_2021, turismo_interno_2021, turismo_emisor_2021))  %>%
+  tab_spanner(label = "2020",
+              columns = c(turismo_receptor_2020, turismo_interno_2020, turismo_emisor_2020))  %>%
+  tab_spanner(label = "2019",
+              columns = c(turismo_receptor_2019, turismo_interno_2019, turismo_emisor_2019))  %>%
+  tab_spanner(label = "2018",
+              columns = c(turismo_receptor_2018, turismo_interno_2018, turismo_emisor_2018))  %>%
+  tab_spanner(label = "2017",
+              columns = c(turismo_receptor_2017, turismo_interno_2017, turismo_emisor_2017))  %>%
+  tab_spanner(label = "2016",
+              columns = c(turismo_receptor_2016, turismo_interno_2016, turismo_emisor_2016)) 
+
+
+Tabla_Turismo <- Tabla_Turismo %>%
+  cols_label(Categoría.de.visitantes = "Tipo de visitante", 
+             Viajes.pernoctaciones = "Tipo de viaje",
+             turismo_receptor_2021 = "Turismo Receptor1",
+             turismo_interno_2021 = "Turismo Interno1",
+             turismo_emisor_2021 = "Turismo Emisor1",
+             turismo_receptor_2020 = "Turismo Receptor2",
+             turismo_interno_2020 = "Turismo Interno2",
+             turismo_emisor_2020 = "Turismo Emisor2",
+             turismo_receptor_2019 = "Turismo Receptor3",
+             turismo_interno_2019 = "Turismo Interno3",
+             turismo_emisor_2019 = "Turismo Emisor3",
+             turismo_receptor_2018 = "Turismo Receptor4",
+             turismo_interno_2018 = "Turismo Interno4",
+             turismo_emisor_2018 = "Turismo Emisor4",
+             turismo_receptor_2017 = "Turismo Receptor5",
+             turismo_interno_2017 = "Turismo Interno5",
+             turismo_emisor_2017 = "Turismo Emisor5",
+             turismo_receptor_2016 = "Turismo Receptor6",
+             turismo_interno_2016 = "Turismo Interno6",
+             turismo_emisor_2016 = "Turismo Emisor6")
+
+Tabla_Turismo <- Tabla_Turismo %>% 
+  opt_row_striping() %>% 
+  opt_table_font(font = google_font("Fira Mono")) %>% 
+  tab_options(column_labels.border.bottom.color = "black",
+              table_body.border.bottom.color = "black",
+              table_body.hlines.color = "orange")%>%
+  tab_style(style = cell_borders(color = "black", weight = px(1)), locations = cells_body())
+
+Tabla_Turismo
+
+```
