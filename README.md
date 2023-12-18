@@ -8,11 +8,11 @@ Repo utilizado para elaborar el trabajo en equipo para la asignatura "Programaci
 
 
 <!-- En la linea de abajo HAS de SUSTITUIR "perezp44" por tu usuario de Github-->
-La versión final del trabajo puede visualizarse en: <https://AlexMS77.github.io/trabajo_BigData_equipo/>. 
+La versión final del trabajo puede visualizarse en: <https://manulloret.github.io/trabajo_BigData_equipo/>. 
 
 
 <!-- Abajo podéis escribir lo que queráis, igual un resumen del trabajo, o ..., o ... pero al menos, tenéis que poner el título del trabajo y el nombre de los componentes del equipo-->
 
-Los autores de este trabajo son Naira Carruccio (naicavi@alumni.uv.es), Alejandro Monzó (amonsan7@alumni.uv.es) y Luis Antonio Pérez (luispepa@alumni.uv.es)
+Este  trabajo esta hecho por Manuel Lloret (llopima@alumni.uv.es), Aarón Alarcón (luisa9@alumni.uv.es) y Ángel Martínez (anmaral6@alumni.uv.es)
 
-El título del trabajo es "La evolución del gasto en educación en España y su relación con las pruebas PISA". En el trabajo hacemos un análisis del gasto en educación que destinan diferentes paises en relación a España y veremos si existe alguna relación con los resultados de la prueba PISA.
+Nuestro trabajo lleva por título : "Análisis general de las regiones españolas". El objetivo es tener una vision general de varios aspectos económicos, demográficos e incluso sociales y ver las diferencias que hay entre las distintas regiones y ya de paso, nos da la posibilidad de practicar con distintos tipos de graficos jeje
